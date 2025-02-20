@@ -161,7 +161,7 @@ async function createProject({
   eslint,
 }) {
   const projectDir = path.join(process.cwd(), projectName);
-  const isTs = language === "TypeScript";
+  const isTs = language === "TypeScript"; // Define isTs here
   const ext = isTs ? "tsx" : "jsx";
 
   const spinner = ora("Creating project directory...").start();
@@ -224,7 +224,8 @@ async function createProject({
     shadcn,
     husky,
     prettier,
-    eslint
+    eslint,
+    isTs // Pass isTs here
   );
   spinner.succeed();
 
@@ -255,7 +256,7 @@ async function createProject({
   spinner.succeed();
 
   console.log(chalk.green(`Project ${projectName} created successfully!`));
-  console.log(chalk.yellow(`cd ${projectName} && ${packageManager} ${packageManager === "npm" ? "run " : ""}dev`));
+  console.log(chalk.yellow(`cd ${projectName} && ${packageManager === "npm" ? "npm run dev" : "yarn dev"}`));
 }
 
 async function createProjectStructure(
@@ -289,7 +290,7 @@ async function createProjectStructure(
     await fs.writeFile(path.join(routesDir, `ProjectRoutes.${ext}`), getProjectRoutesTemplate(ext, tailwind));
     const pagesDir = path.join(srcDir, "pages");
     await fs.ensureDir(pagesDir);
-    await fs.writeFile(path.join(pagesDir, `Login.${ext}`), getLoginTemplate(ext, tailwind,shadcn));
+    await fs.writeFile(path.join(pagesDir, `Login.${ext}`), getLoginTemplate(ext, tailwind, shadcn));
   }
 
   if (template === "Dashboard" || authentication) {
@@ -328,7 +329,8 @@ async function installDependencies(
   shadcn,
   husky,
   prettier,
-  eslint
+  eslint,
+  isTs // Add isTs parameter
 ) {
   const deps = [];
   const devDeps = [];
@@ -350,9 +352,18 @@ async function installDependencies(
   }
 
   if (husky) devDeps.push("husky");
-  if (prettier) devDeps.push("prettier");
+  if (prettier) {
+    devDeps.push("prettier", "lint-staged");
+  }
   if (eslint) {
-    devDeps.push("eslint", "@eslint/js", "eslint-plugin-react", "eslint-plugin-react-hooks");
+    devDeps.push(
+      "eslint",
+      "@eslint/js",
+      "eslint-plugin-react",
+      "eslint-plugin-react-hooks",
+      isTs ? "@typescript-eslint/parser" : "@babel/eslint-parser" // Use isTs here
+    );
+    if (!isTs) devDeps.push("@babel/preset-react"); // Required for JSX parsing with Babel
   }
 
   const installCommand = packageManager === "npm" ? "install" : "add";
@@ -369,6 +380,30 @@ async function installDependencies(
 async function generateConfigFiles(projectDir, isTs, packageManager, tailwind, shadcn, prettier, eslint, husky, gitInit) {
   await fs.writeFile(path.join(projectDir, `vite.config.${isTs ? "ts" : "js"}`), getViteConfigTemplate(isTs, tailwind));
 
+  if (isTs) {
+    await fs.writeFile(
+      path.join(projectDir, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: "ESNext",
+            module: "ESNext",
+            moduleResolution: "node",
+            jsx: "react-jsx",
+            strict: true,
+            esModuleInterop: true,
+            skipLibCheck: true,
+            forceConsistentCasingInFileNames: true,
+          },
+          include: ["src/**/*"],
+          exclude: ["node_modules", "dist"],
+        },
+        null,
+        2
+      )
+    );
+  }
+
   if (tailwind) {
     await fs.writeFile(path.join(projectDir, `tailwind.config.${isTs ? "ts" : "js"}`), getTailwindConfigTemplate(isTs));
   }
@@ -378,19 +413,127 @@ async function generateConfigFiles(projectDir, isTs, packageManager, tailwind, s
   }
 
   if (prettier) {
-    await fs.writeFile(path.join(projectDir, ".prettierrc"), JSON.stringify({ semi: true, singleQuote: true }, null, 2));
+    await fs.writeFile(
+      path.join(projectDir, ".prettierrc"),
+      JSON.stringify(
+        {
+          semi: true,
+          singleQuote: false,
+          trailingComma: "es5",
+          printWidth: 150,
+          proseWrap: "preserve",
+          bracketSpacing: true,
+          bracketSameLine: false,
+          tabWidth: 2,
+          arrowParens: "always",
+        },
+        null,
+        2
+      )
+    );
+
+    // Add .prettierignore file
+    await fs.writeFile(
+      path.join(projectDir, ".prettierignore"),
+      `
+  # Dependencies
+  node_modules/
+  
+  # Build output
+  dist/
+  dist-ssr/
+  
+  # Configuration files
+  *.config.js
+  *.config.ts
+  tsconfig.json
+  .prettierrc
+  
+  # Generated files
+  *.min.js
+  *.bundle.js
+  
+  # Logs
+  *.log
+  
+  # Environment files
+  .env
+  .env.*
+
+  # Lock files
+  package-lock.json
+  yarn.lock
+  
+  # Miscellaneous
+  coverage/
+      `.trim()
+    );
   }
 
   if (eslint) {
-    await fs.writeFile(
-      path.join(projectDir, "eslint.config.js"),
-      getEslintConfigTemplate(isTs) // Updated to generate eslint.config.js
-    );
+    await fs.writeFile(path.join(projectDir, "eslint.config.js"), getEslintConfigTemplate(isTs));
   }
 
   if (gitInit) {
     await execa("git", ["init"], { cwd: projectDir });
-    await fs.writeFile(path.join(projectDir, ".gitignore"), "node_modules\ndist\n");
+    await fs.writeFile(
+      path.join(projectDir, ".gitignore"),
+      `
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vite-specific
+.vite/
+vite.config.*.timestamp-*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Husky (if not needed in repo)
+.husky/_/
+
+# Lock files
+package-lock.json
+yarn.lock
+
+# Miscellaneous
+*.bak
+*.gho
+*.ori
+*.tmp
+    `.trim()
+    );
   }
 
   const packageJsonPath = path.join(projectDir, "package.json");
@@ -400,17 +543,28 @@ async function generateConfigFiles(projectDir, isTs, packageManager, tailwind, s
     packageJson.scripts = packageJson.scripts || {};
     packageJson.scripts.prepare = "husky";
     await execa("npx", ["husky", "init"], { cwd: projectDir });
-    await fs.writeFile(path.join(projectDir, ".husky", "pre-commit"), `${packageManager} run lint`);
+    const preCommitCommand = prettier
+      ? `${packageManager} run lint-staged
+    npm run lint`
+      : `${packageManager} run lint`;
+    await fs.writeFile(path.join(projectDir, ".husky", "pre-commit"), preCommitCommand);
   }
 
   packageJson.type = "module";
   packageJson.scripts = {
-    dev: `${packageManager} vite`,
-    build: `${packageManager} vite build`,
-    preview: `${packageManager} vite preview`,
-    ...(eslint && { lint: `${packageManager} eslint src/**/*.{js,jsx,ts,tsx}` }),
+    dev: "vite",
+    build: "vite build",
+    preview: "vite preview",
+    ...(eslint && { lint: "eslint src/**/*.{js,jsx,ts,tsx}" }),
+    ...(prettier && { "lint-staged": "lint-staged" }),
     ...(husky && packageJson.scripts.prepare ? { prepare: packageJson.scripts.prepare } : {}),
   };
+
+  if (prettier) {
+    packageJson["lint-staged"] = {
+      "*.{js,jsx,ts,tsx,md,html,css}": ["prettier --write"],
+    };
+  }
 
   await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
 }
@@ -418,9 +572,9 @@ async function generateConfigFiles(projectDir, isTs, packageManager, tailwind, s
 async function generateReadme(projectDir, packageManager, features) {
   const readmeContent = `
   # ${features.projectName}
-  
+
   A professional React application generated with \`create-pro-app\`.
-  
+
   ## Features
   - **Language**: ${features.language}
   - **Template**: ${features.template}
@@ -433,34 +587,35 @@ async function generateReadme(projectDir, packageManager, features) {
   ${features.husky ? "- Husky for git hooks" : ""}
   ${features.prettier ? "- Prettier for code formatting" : ""}
   ${features.eslint ? "- ESLint for linting" : ""}
-  
+
   ## Getting Started
-  
+
   1. Install dependencies:
      \`\`\`bash
-     ${packageManager} ${packageManager === "npm" ? "install" : "install"}
+     ${packageManager === "npm" ? "npm install" : "yarn install"}
      \`\`\`
-  
+
   2. Start the development server:
      \`\`\`bash
-     ${packageManager} ${packageManager === "npm" ? "run " : ""}dev
+     ${packageManager === "npm" ? "npm run dev" : "yarn dev"}
      \`\`\`
-  
+
   3. Open [http://localhost:5173](http://localhost:5173) in your browser.
-  
+
   ## Scripts
-  - \`${packageManager} ${packageManager === "npm" ? "run " : ""}dev\`: Start the development server
-  - \`${packageManager} ${packageManager === "npm" ? "run " : ""}build\`: Build for production
-  - \`${packageManager} ${packageManager === "npm" ? "run " : ""}preview\`: Preview the production build
-  ${features.eslint ? `- \`${packageManager} ${packageManager === "npm" ? "run " : ""}lint\`: Run ESLint` : ""}
-  
+  - \`${packageManager === "npm" ? "npm run dev" : "yarn dev"}\`: Start the development server
+  - \`${packageManager === "npm" ? "npm run build" : "yarn build"}\`: Build for production
+  - \`${packageManager === "npm" ? "npm run preview" : "yarn preview"}\`: Preview the production build
+  ${features.eslint ? `- \`${packageManager === "npm" ? "npm run lint" : "yarn lint"}\`: Run ESLint` : ""}
+  ${features.prettier ? `- \`${packageManager === "npm" ? "npm run lint-staged" : "yarn lint-staged"}\`: Run lint-staged` : ""}
+
   ${
     features.authentication
       ? "## Authentication\n- A login page is available at `/login`.\n- The dashboard is protected and accessible at `/app/dashboard` after login."
       : ""
   }
   ${features.shadcn ? "## Shadcn UI\n- Use imported components from `src/components/ui/` in your app.\n- Example: `<Button>Click me</Button>`" : ""}
-    `;
+  `;
   await fs.writeFile(path.join(projectDir, "README.md"), readmeContent.trim());
 }
 
@@ -739,7 +894,8 @@ import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 
 const PrivateRoutes = () => {
-  const isAuthenticated = false; // Replace with your auth logic
+  // TODO: Replace with your authentication logic (e.g., Redux state, localStorage token, etc.)
+  const isAuthenticated = localStorage.getItem('token') !== null; 
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 };
 
@@ -792,7 +948,11 @@ ${tailwind && shadcn ? 'import { cn } from "../lib/utils";' : ""}
 
 const Login = () => {
   return (
-    <div${tailwind && shadcn ? ' className={cn("min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100")}' : ' className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100"'}>
+    <div${
+      tailwind && shadcn
+        ? ' className={cn("min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100")}'
+        : ' className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100"'
+    }>
       ${
         tailwind
           ? `
@@ -859,7 +1019,6 @@ export default Login;
 `;
 }
 
-
 function getDashboardTemplate(ext, tailwind, shadcn) {
   return `
 import React from 'react';
@@ -910,6 +1069,7 @@ export default Dashboard;
 
 function getEslintConfigTemplate(isTs) {
   return `
+${isTs ? "import tsEslintParser from '@typescript-eslint/parser';" : "import babelEslintParser from '@babel/eslint-parser';"}
 import eslint from '@eslint/js';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
@@ -917,6 +1077,23 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 export default [
   eslint.configs.recommended,
   {
+    files: ['**/*.{js,jsx${isTs ? ",ts,tsx" : ""}}'],
+    languageOptions: {
+      parser: ${isTs ? "tsEslintParser" : "babelEslintParser"},
+      parserOptions: {
+        ${isTs ? "sourceType: 'module'," : "requireConfigFile: false,"}
+        ${isTs ? "project: './tsconfig.json'," : "babelOptions: { presets: ['@babel/preset-react'] },"}
+        ecmaVersion: 'latest',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        localStorage: true,
+        window: true,
+        document: true
+      },
+    },
     plugins: {
       react: reactPlugin,
       'react-hooks': reactHooksPlugin,
@@ -929,10 +1106,8 @@ export default [
     rules: {
       ...reactPlugin.configs.recommended.rules,
       ...reactHooksPlugin.configs.recommended.rules,
-      'react/prop-types': 'off',
+      'react/prop-types': 'off', // Disable prop-types since we use TypeScript or don't enforce it
     },
-    files: ['**/*.{js,jsx,ts,tsx}'],
-    ${isTs ? "languageOptions: { parserOptions: { project: ['tsconfig.json'] } }," : ""}
   },
 ];
 `;
@@ -1048,13 +1223,13 @@ export default useStore;
 }
 
 async function createApiHandler(projectDir, ext, apiHandler) {
-  const apiDir = path.join(projectDir, "src", "api");
-  await fs.ensureDir(apiDir);
+  const utilsDir = path.join(projectDir, "src", "utils");
+  await fs.ensureDir(utilsDir);
 
   if (apiHandler === "Axios") {
-    await fs.writeFile(path.join(apiDir, `api.${ext}`), getAxiosTemplate(ext));
+    await fs.writeFile(path.join(utilsDir, `axiosInstance.${ext}`), getAxiosTemplate(ext));
   } else {
-    await fs.writeFile(path.join(apiDir, `api.${ext}`), getFetchTemplate(ext));
+    await fs.writeFile(path.join(utilsDir, `fetchInstance.${ext}`), getFetchTemplate(ext));
   }
 }
 
