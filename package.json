@@ -1,0 +1,22 @@
+{
+  "name": "create-pro-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": {
+    "create-pro-app": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC", 
+  "description": "",
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "execa": "^9.5.2",
+    "fs-extra": "^11.3.0",
+    "inquirer": "^12.4.2"
+  },
+  "type": "module"
+}
