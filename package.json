@@ -10,13 +10,14 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC", 
+  "license": "ISC",
   "description": "",
   "dependencies": {
     "chalk": "^5.4.1",
     "execa": "^9.5.2",
     "fs-extra": "^11.3.0",
-    "inquirer": "^12.4.2"
+    "inquirer": "^12.4.2",
+    "ora": "^8.2.0"
   },
   "type": "module"
 }

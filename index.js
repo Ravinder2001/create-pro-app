@@ -5,227 +5,343 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import path from "path";
 import { execa } from "execa";
+import ora from "ora";
 
 async function run() {
-  console.log(chalk.green("Welcome to create-pro-app!"));
-
-  const answers = await inquirer.prompt([
-    {
-      type: "input",
-      name: "projectName",
-      message: "Enter your project name:",
-      default: "my-pro-app",
-    },
-    {
-      type: "list",
-      name: "language",
-      message: "Choose a language:",
-      choices: ["JavaScript", "TypeScript"],
-      default: "JavaScript",
-    },
-    {
+    console.log(chalk.green("Welcome to create-pro-app!"));
+  
+    const answers = await inquirer.prompt([
+      {
+        type: "input",
+        name: "projectName",
+        message: "Enter your project name:",
+        default: "my-pro-app",
+      },
+      {
+        type: "list",
+        name: "language",
+        message: "Choose a language:",
+        choices: ["JavaScript", "TypeScript"],
+        default: "JavaScript",
+      },
+      {
+        type: "list",
+        name: "packageManager",
+        message: "Choose a package manager:",
+        choices: ["npm", "yarn"],
+        default: "npm",
+      },
+      {
+        type: "list",
+        name: "template",
+        message: "Choose a project template:",
+        choices: ["Minimal", "Dashboard"],
+        default: "Minimal",
+      },
+      {
+        type: "confirm",
+        name: "authentication",
+        message: "Do you want authentication to protect routes?",
+        default: false,
+      },
+      {
+        type: "confirm",
+        name: "stateManager",
+        message: "Do you want to use Redux Toolkit as a global state manager?",
+        default: false,
+      },
+      {
+        type: "confirm",
+        name: "persist",
+        message: "Do you want to add state persistence for Redux Toolkit?",
+        default: false,
+        when: (answers) => answers.stateManager,
+      },
+      {
+        type: "list",
+        name: "apiHandler",
+        message: "Choose an API handler:",
+        choices: ["Axios", "Fetch"],
+        default: "Axios",
+      },
+      {
+        type: "confirm",
+        name: "tailwind",
+        message: "Do you want to use Tailwind CSS?",
+        default: false,
+      },
+      {
+        type: "confirm",
+        name: "customFonts",
+        message: "Do you want to add custom fonts?",
+        default: false,
+      },
+      {
+        type: "list",
+        name: "fontChoice",
+        message: "Choose a font:",
+        choices: ["Roboto", "Inter", "Poppins", "Open Sans", "Lato", "None"],
+        default: "Roboto",
+        when: (answers) => answers.customFonts,
+      },
+      {
+        type: "confirm",
+        name: "shadcn",
+        message: "Do you want to integrate Shadcn UI library (requires Tailwind CSS)?",
+        default: false,
+        when: (answers) => answers.tailwind,
+      },
+      {
+        type: "checkbox",
+        name: "shadcnComponents",
+        message: "Select Shadcn UI components to include:",
+        choices: ["Button", "Input", "Card"],
+        default: ["Button"],
+        when: (answers) => answers.shadcn,
+      },
+      {
+        type: "confirm",
+        name: "gitInit",
+        message: "Do you want to initialize a Git repository?",
+        default: true,
+      },
+      {
+        type: "confirm",
+        name: "husky",
+        message: "Do you want to set up Husky for git hooks?",
+        default: false,
+      },
+      {
+        type: "confirm",
+        name: "prettier",
+        message: "Do you want to add Prettier for code formatting?",
+        default: true,
+      },
+      {
+        type: "confirm",
+        name: "eslint",
+        message: "Do you want to add ESLint for linting?",
+        default: true,
+      },
+    ]);
+  
+    console.log(chalk.yellow("Configuration Preview:"));
+    console.log(JSON.stringify(answers, null, 2));
+    const confirm = await inquirer.prompt({
       type: "confirm",
-      name: "authentication",
-      message: "Do you want authentication to protect routes?",
-      default: false,
-    },
-    {
-      type: "list",
-      name: "stateManagement",
-      message: "Choose a state management library:",
-      choices: ["Redux Toolkit", "Zustand"],
-      default: "Redux Toolkit",
-    },
-    {
-      type: "confirm",
-      name: "persist",
-      message: "Do you want to add state persistence?",
-      default: false,
-    },
-    {
-      type: "list",
-      name: "apiHandler",
-      message: "Choose an API handler:",
-      choices: ["Axios", "Fetch"],
-      default: "Axios",
-    },
-    {
-      type: "confirm",
-      name: "tailwind",
-      message: "Do you want to use Tailwind CSS?",
-      default: false,
-    },
-    {
-      type: "confirm",
-      name: "customFonts",
-      message: "Do you want to add custom fonts (e.g., Roboto from Google Fonts)?",
-      default: false,
-    },
-    {
-      type: "confirm",
-      name: "shadcn",
-      message: "Do you want to integrate Shadcn UI library (requires Tailwind CSS)?",
-      default: false,
-      when: (answers) => answers.tailwind,
-    },
-    {
-      type: "confirm",
-      name: "husky",
-      message: "Do you want to set up Husky for git hooks?",
-      default: false,
-    },
-    {
-      type: "confirm",
-      name: "prettier",
-      message: "Do you want to add Prettier for code formatting?",
+      name: "proceed",
+      message: "Do you want to proceed with this configuration?",
       default: true,
-    },
-    {
-      type: "confirm",
-      name: "eslint",
-      message: "Do you want to add ESLint for linting?",
-      default: true,
-    },
-  ]);
+    });
+  
+    if (confirm.proceed) {
+      await createProject(answers);
+    } else {
+      console.log(chalk.red("Project creation cancelled."));
+    }
+  }
 
-  await createProject(answers);
-}
-
-async function createProject({
-  projectName,
-  language,
-  authentication,
-  stateManagement,
-  persist,
-  apiHandler,
-  tailwind,
-  customFonts,
-  shadcn,
-  husky,
-  prettier,
-  eslint,
-}) {
-  const projectDir = path.join(process.cwd(), projectName);
-  const isTs = language === "TypeScript";
-  const ext = isTs ? "tsx" : "jsx";
-
-  await fs.ensureDir(projectDir);
-  console.log(chalk.blue(`Creating project: ${projectName}`));
-
-  await execa("npm", ["init", "-y"], { cwd: projectDir });
-
-  const reactDeps = isTs
-    ? ["react", "react-dom", "@types/react", "@types/react-dom"]
-    : ["react", "react-dom"];
-  await execa("npm", ["install", ...reactDeps], { cwd: projectDir });
-
-  const devDeps = ["vite", "@vitejs/plugin-react"];
-  if (isTs) devDeps.push("typescript");
-  await execa("npm", ["install", "--save-dev", ...devDeps], { cwd: projectDir });
-
-  await createProjectStructure(
-    projectDir,
-    ext,
+  async function createProject({
+    projectName,
+    language,
+    packageManager,
+    template,
     authentication,
-    stateManagement,
+    stateManager,
     persist,
     apiHandler,
     tailwind,
     customFonts,
-    shadcn
-  );
-
-  await installDependencies(
-    projectDir,
-    authentication,
-    stateManagement,
-    persist,
-    apiHandler,
-    tailwind,
-    customFonts,
+    fontChoice,
     shadcn,
+    shadcnComponents,
+    gitInit,
     husky,
     prettier,
-    eslint
-  );
-
-  await generateConfigFiles(
-    projectDir,
-    isTs,
-    tailwind,
-    shadcn,
-    prettier,
     eslint,
-    husky
-  );
-
-  console.log(chalk.green(`Project ${projectName} created successfully!`));
-  console.log(chalk.yellow(`cd ${projectName} && npm run dev`));
-}
-
-async function createProjectStructure(
-  projectDir,
-  ext,
-  authentication,
-  stateManagement,
-  persist,
-  apiHandler,
-  tailwind,
-  customFonts,
-  shadcn
-) {
-  const srcDir = path.join(projectDir, "src");
-  await fs.ensureDir(srcDir);
-
-  await fs.writeFile(
-    path.join(srcDir, `App.${ext}`),
-    getAppTemplate(ext, authentication, stateManagement, persist, tailwind, shadcn)
-  );
-  await fs.writeFile(
-    path.join(srcDir, `main.${ext}`),
-    getMainTemplate(ext, stateManagement, persist)
-  );
-  await fs.writeFile(
-    path.join(projectDir, "index.html"),
-    getIndexHtmlTemplate(ext, customFonts)
-  );
-
-  if (authentication) {
-    const routesDir = path.join(srcDir, "routes");
-    await fs.ensureDir(routesDir);
-    await fs.writeFile(
-      path.join(routesDir, `PrivateRoutes.${ext}`),
-      getPrivateRoutesTemplate(ext)
+  }) {
+    const projectDir = path.join(process.cwd(), projectName);
+    const isTs = language === "TypeScript";
+    const ext = isTs ? "tsx" : "jsx";
+  
+    const spinner = ora("Creating project directory...").start();
+    await fs.ensureDir(projectDir);
+    spinner.succeed();
+  
+    spinner.text = "Initializing package.json...";
+    spinner.start();
+    await execa(packageManager, ["init", "-y"], { cwd: projectDir });
+    spinner.succeed();
+  
+    spinner.text = "Installing React dependencies...";
+    spinner.start();
+    const reactDeps = isTs
+      ? ["react", "react-dom", "@types/react", "@types/react-dom"]
+      : ["react", "react-dom"];
+    const installCommand = packageManager === "npm" ? "install" : "add";
+    await execa(packageManager, [installCommand, ...reactDeps], { cwd: projectDir });
+    spinner.succeed();
+  
+    spinner.text = "Installing Vite and dev dependencies...";
+    spinner.start();
+    const devDeps = ["vite", "@vitejs/plugin-react"];
+    if (isTs) devDeps.push("typescript");
+    const devFlag = packageManager === "npm" ? "--save-dev" : "-D";
+    await execa(packageManager, [installCommand, devFlag, ...devDeps], { cwd: projectDir });
+    spinner.succeed();
+  
+    const packageJsonPath = path.join(projectDir, "package.json");
+    const packageJsonAfterDevDeps = await fs.readJson(packageJsonPath);
+    console.log(chalk.blue("package.json after dev dependencies:"), packageJsonAfterDevDeps);
+  
+    spinner.text = "Generating project structure...";
+    spinner.start();
+    await createProjectStructure(
+      projectDir,
+      ext,
+      template,
+      authentication,
+      stateManager,
+      persist,
+      apiHandler,
+      tailwind,
+      customFonts,
+      fontChoice,
+      shadcn,
+      shadcnComponents
     );
-    await fs.writeFile(
-      path.join(routesDir, `PublicRoutes.${ext}`),
-      getPublicRoutesTemplate(ext)
+    spinner.succeed();
+  
+    spinner.text = "Installing additional dependencies...";
+    spinner.start();
+    await installDependencies(
+      projectDir,
+      packageManager,
+      authentication,
+      stateManager,
+      persist,
+      apiHandler,
+      tailwind,
+      customFonts,
+      shadcn,
+      husky,
+      prettier,
+      eslint
     );
-    await fs.writeFile(
-      path.join(routesDir, `ProjectRoutes.${ext}`),
-      getProjectRoutesTemplate(ext)
+    spinner.succeed();
+  
+    spinner.text = "Generating configuration files...";
+    spinner.start();
+    await generateConfigFiles(
+      projectDir,
+      isTs,
+      packageManager,
+      tailwind,
+      shadcn,
+      prettier,
+      eslint,
+      husky,
+      gitInit
     );
+    spinner.succeed();
+  
+    spinner.text = "Generating README...";
+    spinner.start();
+    await generateReadme(projectDir, packageManager, {
+      projectName,
+      language,
+      template,
+      authentication,
+      stateManager,
+      persist,
+      apiHandler,
+      tailwind,
+      customFonts,
+      fontChoice,
+      shadcn,
+      shadcnComponents,
+      husky,
+      prettier,
+      eslint,
+    });
+    spinner.succeed();
+  
+    console.log(chalk.green(`Project ${projectName} created successfully!`));
+    console.log(chalk.yellow(`cd ${projectName} && ${packageManager} ${packageManager === "npm" ? "run " : ""}dev`));
   }
 
-  await createStore(projectDir, ext, stateManagement, persist, authentication);
-  await createApiHandler(projectDir, ext, apiHandler);
-
-  if (tailwind) {
-    await fs.writeFile(
-      path.join(srcDir, "index.css"),
-      getTailwindCssTemplate()
-    );
-  }
-
-  if (shadcn) {
-    await initializeShadcn(projectDir, ext);
-  }
-}
-
-async function installDependencies(
+  async function createProjectStructure(
     projectDir,
+    ext,
+    template,
     authentication,
-    stateManagement,
+    stateManager,
+    persist,
+    apiHandler,
+    tailwind,
+    customFonts,
+    fontChoice,
+    shadcn,
+    shadcnComponents
+  ) {
+    const srcDir = path.join(projectDir, "src");
+  
+    await fs.remove(srcDir);
+    await fs.ensureDir(srcDir);
+  
+    await fs.writeFile(
+      path.join(srcDir, `App.${ext}`),
+      getAppTemplate(ext, template, authentication, stateManager, persist, tailwind, shadcn)
+    );
+    await fs.writeFile(
+      path.join(srcDir, `main.${ext}`),
+      getMainTemplate(ext, stateManager, persist, tailwind)
+    );
+    await fs.writeFile(
+      path.join(projectDir, "index.html"),
+      getIndexHtmlTemplate(ext, customFonts, fontChoice)
+    );
+  
+    if (authentication) {
+      const routesDir = path.join(srcDir, "routes");
+      await fs.ensureDir(routesDir);
+      await fs.writeFile(path.join(routesDir, `PrivateRoutes.${ext}`), getPrivateRoutesTemplate(ext));
+      await fs.writeFile(path.join(routesDir, `PublicRoutes.${ext}`), getPublicRoutesTemplate(ext));
+      await fs.writeFile(path.join(routesDir, `ProjectRoutes.${ext}`), getProjectRoutesTemplate(ext, tailwind));
+      const pagesDir = path.join(srcDir, "pages");
+      await fs.ensureDir(pagesDir);
+      await fs.writeFile(path.join(pagesDir, `Login.${ext}`), getLoginTemplate(ext, tailwind));
+    }
+  
+    if (template === "Dashboard" || authentication) {
+      const componentsDir = path.join(srcDir, "components");
+      await fs.ensureDir(componentsDir);
+      await fs.writeFile(path.join(componentsDir, `Dashboard.${ext}`), getDashboardTemplate(ext, tailwind));
+    }
+  
+    if (stateManager) {
+      await createStore(projectDir, ext, authentication, persist);
+    }
+  
+    await createApiHandler(projectDir, ext, apiHandler);
+  
+    if (tailwind) {
+      await fs.writeFile(
+        path.join(srcDir, "index.css"),
+        getTailwindCssTemplate(customFonts, fontChoice)
+      );
+    }
+  
+    if (shadcn) {
+      await initializeShadcn(projectDir, ext, shadcnComponents);
+    }
+  }
+
+  async function installDependencies(
+    projectDir,
+    packageManager,
+    authentication,
+    stateManager,
     persist,
     apiHandler,
     tailwind,
@@ -240,18 +356,15 @@ async function installDependencies(
   
     deps.push("react-router-dom");
   
-    if (stateManagement === "Redux Toolkit") {
+    if (stateManager) {
       deps.push("@reduxjs/toolkit", "react-redux");
       if (persist) deps.push("redux-persist");
-    } else if (stateManagement === "Zustand") {
-      deps.push("zustand");
-      if (persist) deps.push("zustand/middleware");
     }
   
     if (apiHandler === "Axios") deps.push("axios");
   
     if (tailwind) {
-      devDeps.push("tailwindcss", "postcss", "autoprefixer", "@tailwindcss/postcss"); // Add @tailwindcss/postcss
+      devDeps.push("tailwindcss", "@tailwindcss/vite", "autoprefixer");
     }
     if (shadcn) {
       deps.push("clsx", "tailwind-merge");
@@ -260,157 +373,186 @@ async function installDependencies(
     if (husky) devDeps.push("husky");
     if (prettier) devDeps.push("prettier");
     if (eslint) {
-      devDeps.push(
-        "eslint",
-        "eslint-plugin-react",
-        "eslint-plugin-react-hooks",
-        "@eslint/js"
-      );
+      devDeps.push("eslint", "eslint-plugin-react", "eslint-plugin-react-hooks", "@eslint/js");
     }
   
+    const installCommand = packageManager === "npm" ? "install" : "add";
+    const devFlag = packageManager === "npm" ? "--save-dev" : "-D";
+  
     if (deps.length) {
-      await execa("npm", ["install", ...deps], { cwd: projectDir });
+      await execa(packageManager, [installCommand, ...deps], { cwd: projectDir });
     }
     if (devDeps.length) {
-      await execa("npm", ["install", "--save-dev", ...devDeps], { cwd: projectDir });
+      await execa(packageManager, [installCommand, devFlag, ...devDeps], { cwd: projectDir });
     }
   }
 
-async function generateConfigFiles(
-  projectDir,
-  isTs,
-  tailwind,
-  shadcn,
-  prettier,
-  eslint,
-  husky
-) {
-  await fs.writeFile(
-    path.join(projectDir, `vite.config.${isTs ? "ts" : "js"}`),
-    getViteConfigTemplate(isTs)
-  );
+async function generateConfigFiles(projectDir, isTs, packageManager, tailwind, shadcn, prettier, eslint, husky, gitInit) {
+  await fs.writeFile(path.join(projectDir, `vite.config.${isTs ? "ts" : "js"}`), getViteConfigTemplate(isTs, tailwind));
 
   if (tailwind) {
-    await fs.writeFile(
-      path.join(projectDir, `tailwind.config.${isTs ? "ts" : "js"}`),
-      getTailwindConfigTemplate(isTs)
-    );
-    await fs.writeFile(
-      path.join(projectDir, "postcss.config.js"),
-      getPostcssConfigTemplate()
-    );
+    await fs.writeFile(path.join(projectDir, `tailwind.config.${isTs ? "ts" : "js"}`), getTailwindConfigTemplate(isTs));
   }
 
   if (shadcn) {
-    await fs.writeFile(
-      path.join(projectDir, "components.json"),
-      getShadcnConfigTemplate(isTs)
-    );
+    await fs.writeFile(path.join(projectDir, "components.json"), getShadcnConfigTemplate(isTs));
   }
 
   if (prettier) {
-    await fs.writeFile(
-      path.join(projectDir, ".prettierrc"),
-      JSON.stringify({ semi: true, singleQuote: true }, null, 2)
-    );
+    await fs.writeFile(path.join(projectDir, ".prettierrc"), JSON.stringify({ semi: true, singleQuote: true }, null, 2));
   }
 
   if (eslint) {
-    await fs.writeFile(
-      path.join(projectDir, ".eslintrc.cjs"),
-      getEslintConfigTemplate()
-    );
+    await fs.writeFile(path.join(projectDir, ".eslintrc.cjs"), getEslintConfigTemplate());
   }
 
-  if (husky) {
-    await execa("npm", ["pkg", "set", "scripts.prepare=husky"], { cwd: projectDir });
-    await execa("npx", ["husky", "init"], { cwd: projectDir });
-    await fs.writeFile(
-      path.join(projectDir, ".husky", "pre-commit"),
-      "npm run lint"
-    );
+  if (gitInit) {
+    await execa("git", ["init"], { cwd: projectDir });
+    await fs.writeFile(path.join(projectDir, ".gitignore"), "node_modules\ndist\n");
   }
 
   const packageJsonPath = path.join(projectDir, "package.json");
   const packageJson = await fs.readJson(packageJsonPath);
+
+  if (husky) {
+    packageJson.scripts = packageJson.scripts || {};
+    packageJson.scripts.prepare = "husky";
+    await execa("npx", ["husky", "init"], { cwd: projectDir });
+    await fs.writeFile(path.join(projectDir, ".husky", "pre-commit"), `${packageManager} run lint`);
+  }
+
+  packageJson.type = "module";
   packageJson.scripts = {
-    dev: "vite",
-    build: "vite build",
-    preview: "vite preview",
-    ...(eslint && { lint: `eslint src/**/*.{js,jsx,ts,tsx}` }),
+    dev: `${packageManager} vite`,
+    build: `${packageManager} vite build`,
+    preview: `${packageManager} vite preview`,
+    ...(eslint && { lint: `${packageManager} eslint src/**/*.{js,jsx,ts,tsx}` }),
+    ...(husky && packageJson.scripts.prepare ? { prepare: packageJson.scripts.prepare } : {}),
   };
+
   await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
 }
 
-function getAppTemplate(ext, authentication, stateManagement, persist, tailwind, shadcn) {
-  return `
-import React from 'react';
-import { BrowserRouter as Router${authentication ? ", Routes, Route" : ""} } from 'react-router-dom';
-${
-  stateManagement === "Redux Toolkit"
-    ? `import { Provider } from 'react-redux';\nimport { store${persist ? ", persistor" : ""} } from './store/store';`
-    : stateManagement === "Zustand"
-    ? ""
-    : ""
+async function generateReadme(projectDir, packageManager, features) {
+  const readmeContent = `
+  # ${features.projectName}
+  
+  A professional React application generated with \`create-pro-app\`.
+  
+  ## Features
+  - **Language**: ${features.language}
+  - **Template**: ${features.template}
+  ${features.authentication ? "- Authentication with protected routes and a login page" : ""}
+  - **State Management**: Redux Toolkit${features.persist ? " with persistence" : ""}
+  ${features.apiHandler ? `- API Handler: ${features.apiHandler}` : ""}
+  ${features.tailwind ? "- Tailwind CSS for styling" : ""}
+  ${features.customFonts && features.fontChoice !== "None" ? `- Custom Font: ${features.fontChoice}` : ""}
+  ${features.shadcn ? `- Shadcn UI components: ${features.shadcnComponents.join(", ")}` : ""}
+  ${features.husky ? "- Husky for git hooks" : ""}
+  ${features.prettier ? "- Prettier for code formatting" : ""}
+  ${features.eslint ? "- ESLint for linting" : ""}
+  
+  ## Getting Started
+  
+  1. Install dependencies:
+     \`\`\`bash
+     ${packageManager} ${packageManager === "npm" ? "install" : "install"}
+     \`\`\`
+  
+  2. Start the development server:
+     \`\`\`bash
+     ${packageManager} ${packageManager === "npm" ? "run " : ""}dev
+     \`\`\`
+  
+  3. Open [http://localhost:5173](http://localhost:5173) in your browser.
+  
+  ## Scripts
+  - \`${packageManager} ${packageManager === "npm" ? "run " : ""}dev\`: Start the development server
+  - \`${packageManager} ${packageManager === "npm" ? "run " : ""}build\`: Build for production
+  - \`${packageManager} ${packageManager === "npm" ? "run " : ""}preview\`: Preview the production build
+  ${features.eslint ? `- \`${packageManager} ${packageManager === "npm" ? "run " : ""}lint\`: Run ESLint` : ""}
+  
+  ${
+    features.authentication
+      ? "## Authentication\n- A login page is available at `/login`.\n- The dashboard is protected and accessible at `/app/dashboard` after login."
+      : ""
+  }
+  ${features.shadcn ? "## Shadcn UI\n- Use imported components from `src/components/ui/` in your app.\n- Example: `<Button>Click me</Button>`" : ""}
+    `;
+  await fs.writeFile(path.join(projectDir, "README.md"), readmeContent.trim());
 }
-${persist && stateManagement === "Redux Toolkit" ? "import { PersistGate } from 'redux-persist/integration/react';" : ""}
-${authentication ? "import PrivateRoutes from './routes/PrivateRoutes';" : ""}
-${authentication ? "import PublicRoutes from './routes/PublicRoutes';" : ""}
-${authentication ? "import ProjectRoutes from './routes/ProjectRoutes';" : ""}
-${tailwind ? "import './index.css';" : ""}
-${shadcn ? "import { cn } from './lib/utils';" : ""}
 
-function App() {
-  return (
-    ${
-      stateManagement === "Redux Toolkit"
-        ? `<Provider store={store}>${persist ? "<PersistGate loading={null} persistor={persistor}>" : ""}`
-        : ""
-    }
-    <Router>
-      ${
-        authentication
-          ? `<Routes>
-        <Route path="/*" element={<PublicRoutes />} />
-        <Route path="/app/*" element={<PrivateRoutes />}>
-          <Route path="*" element={<ProjectRoutes />} />
-        </Route>
-      </Routes>`
-          : `<div${tailwind ? ' className="text-center p-4"' : shadcn ? ' className={cn("text-center p-4")}' : ""}>Hello, World!</div>`
-      }
-    </Router>
-    ${stateManagement === "Redux Toolkit" ? (persist ? "</PersistGate>" : "") + "</Provider>" : ""}
+function getAppTemplate(ext, template, authentication, stateManager, persist, tailwind, shadcn) {
+    return `
+  ${stateManager ? `import { Provider } from 'react-redux';
+  import { store${persist ? ", persistor" : ""} } from './store/store';
+  ${persist ? "import { PersistGate } from 'redux-persist/integration/react';" : ""}` : ""}
+  import React from 'react';
+  import { BrowserRouter as Router${authentication || template === "Dashboard" ? ", Routes, Route" : ""} } from 'react-router-dom';
+  ${authentication ? "import PrivateRoutes from './routes/PrivateRoutes';" : ""}
+  ${authentication ? "import PublicRoutes from './routes/PublicRoutes';" : ""}
+  ${authentication ? "import ProjectRoutes from './routes/ProjectRoutes';" : ""}
+  ${template === "Dashboard" || authentication ? "import Dashboard from './components/Dashboard';" : ""}
+  ${shadcn ? "import { cn } from './lib/utils';" : ""}
+  
+  function App() {
+    return (
+      ${stateManager ? `<Provider store={store}>
+        ${persist ? "<PersistGate loading={null} persistor={persistor}>" : ""}
+        ` : ""}
+        <Router>
+          ${
+            authentication
+              ? `<Routes>
+          <Route path="/*" element={<PublicRoutes />} />
+          <Route path="/app/*" element={<PrivateRoutes />}>
+            <Route path="*" element={<ProjectRoutes />} />
+          </Route>
+        </Routes>`
+              : template === "Dashboard"
+              ? `<Routes>
+          <Route path="/" element={<Dashboard />} />
+        </Routes>`
+              : `<div${tailwind ? ' className="text-center p-4"' : shadcn ? ' className={cn("text-center p-4")}' : ""}>Hello, World!</div>`
+          }
+        </Router>
+        ${stateManager ? (persist ? "</PersistGate>" : "") + "</Provider>" : ""}
+    );
+  }
+  
+  export default App;
+  `;
+  }
+
+  function getMainTemplate(ext, stateManager, persist, tailwind) {
+    return `
+  import React from 'react';
+  import ReactDOM from 'react-dom/client';
+  import App from './App';
+  ${tailwind ? "import './index.css';" : ""}
+  ${stateManager && persist ? "import './store/store';" : ""}
+  
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
   );
-}
+  `;
+  }
 
-export default App;
-`;
-}
-
-function getMainTemplate(ext, stateManagement, persist) {
-  return `
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-${stateManagement === "Redux Toolkit" && persist ? "import './store/store';" : ""}
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
-`;
-}
-
-function getIndexHtmlTemplate(ext, customFonts) {
+function getIndexHtmlTemplate(ext, customFonts, fontChoice) {
+  const fontUrl =
+    customFonts && fontChoice !== "None"
+      ? `<link href="https://fonts.googleapis.com/css2?family=${fontChoice}:wght@400;700&display=swap" rel="stylesheet">`
+      : "";
   return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  ${customFonts ? '<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">' : ""}
+  ${fontUrl}
   <title>React App</title>
 </head>
 <body>
@@ -421,11 +563,17 @@ function getIndexHtmlTemplate(ext, customFonts) {
 `;
 }
 
-function getTailwindCssTemplate() {
+function getTailwindCssTemplate(customFonts, fontChoice) {
   return `
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+:root {
+    --fontFamily: ${customFonts && fontChoice !== "None" ? `"${fontChoice}"` : "sans-serif"};
+}
+
+body {
+    font-family: var(--fontFamily);
+}
 `;
 }
 
@@ -445,16 +593,17 @@ export default {
 `;
 }
 
-function getPostcssConfigTemplate() {
-    return `
-  module.exports = {
-    plugins: {
-      '@tailwindcss/postcss': {}, // Use @tailwindcss/postcss instead of tailwindcss
-      autoprefixer: {},
-    },
-  }
-  `;
-  }
+function getViteConfigTemplate(isTs, tailwind) {
+  return `
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+${tailwind ? "import tailwindcss from '@tailwindcss/vite';\nimport autoprefixer from 'autoprefixer';" : ""}
+
+export default defineConfig({
+  plugins: [react(), ${tailwind ? "tailwindcss(), autoprefixer()" : ""}],
+});
+`;
+}
 
 function getShadcnConfigTemplate(isTs) {
   return JSON.stringify(
@@ -477,7 +626,7 @@ function getShadcnConfigTemplate(isTs) {
   );
 }
 
-async function initializeShadcn(projectDir, ext) {
+async function initializeShadcn(projectDir, ext, shadcnComponents) {
   const libDir = path.join(projectDir, "src", "lib");
   await fs.ensureDir(libDir);
   await fs.writeFile(
@@ -494,9 +643,11 @@ export function cn(...inputs) {
 
   const componentsDir = path.join(projectDir, "src", "components", "ui");
   await fs.ensureDir(componentsDir);
-  await fs.writeFile(
-    path.join(componentsDir, `button.${ext}`),
-    `
+
+  if (shadcnComponents.includes("Button")) {
+    await fs.writeFile(
+      path.join(componentsDir, `button.${ext}`),
+      `
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
@@ -517,7 +668,79 @@ Button.displayName = "Button";
 
 export { Button };
 `
+    );
+  }
+
+  if (shadcnComponents.includes("Input")) {
+    await fs.writeFile(
+      path.join(componentsDir, `input.${ext}`),
+      `
+import * as React from "react";
+import { cn } from "../../lib/utils";
+
+const Input = React.forwardRef(({ className, type, ...props }, ref) => {
+  return (
+    <input
+      type={type}
+      className={cn(
+        "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      ref={ref}
+      {...props}
+    />
   );
+});
+Input.displayName = "Input";
+
+export { Input };
+`
+    );
+  }
+
+  if (shadcnComponents.includes("Card")) {
+    await fs.writeFile(
+      path.join(componentsDir, `card.${ext}`),
+      `
+import * as React from "react";
+import { cn } from "../../lib/utils";
+
+const Card = React.forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
+    {...props}
+  />
+));
+Card.displayName = "Card";
+
+const CardHeader = React.forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+));
+CardHeader.displayName = "CardHeader";
+
+const CardTitle = React.forwardRef(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn("text-2xl font-semibold leading-none tracking-tight", className)}
+    {...props}
+  />
+));
+CardTitle.displayName = "CardTitle";
+
+const CardContent = React.forwardRef(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+));
+CardContent.displayName = "CardContent";
+
+export { Card, CardHeader, CardTitle, CardContent };
+`
+    );
+  }
 }
 
 function getPrivateRoutesTemplate(ext) {
@@ -538,11 +761,12 @@ function getPublicRoutesTemplate(ext) {
   return `
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
+import Login from '../pages/Login';
 
 const PublicRoutes = () => {
   return (
     <Routes>
-      <Route path="/login" element={<div>Login Page</div>} />
+      <Route path="/login" element={<Login />} />
       <Route path="*" element={<div>404 Not Found</div>} />
     </Routes>
   );
@@ -552,16 +776,17 @@ export default PublicRoutes;
 `;
 }
 
-function getProjectRoutesTemplate(ext) {
+function getProjectRoutesTemplate(ext, tailwind) {
   return `
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
+import Dashboard from '../components/Dashboard';
 
 const ProjectRoutes = () => {
   return (
     <Routes>
-      <Route path="/" element={<div>Dashboard</div>} />
-      <Route path="/profile" element={<div>Profile</div>} />
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/profile" element={<div${tailwind ? ' className="text-center p-4"' : ""}>Profile</div>} />
     </Routes>
   );
 };
@@ -570,14 +795,98 @@ export default ProjectRoutes;
 `;
 }
 
-function getViteConfigTemplate(isTs) {
+function getLoginTemplate(ext, tailwind) {
   return `
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import React from 'react';
+${tailwind ? 'import { cn } from "../lib/utils";' : ""}
 
-export default defineConfig({
-  plugins: [react()],
-});
+const Login = () => {
+  return (
+    <div${tailwind ? ' className={cn("min-h-screen flex items-center justify-center bg-gray-100")}' : ""}>
+      ${
+        tailwind
+          ? `
+      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+        <form>
+          <div className="mb-4">
+            <label className="block text-gray-700 mb-2" htmlFor="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter your email"
+            />
+          </div>
+          <div className="mb-6">
+            <label className="block text-gray-700 mb-2" htmlFor="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter your password"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white p-3 rounded-md hover:bg-blue-600 transition-colors"
+          >
+            Login
+          </button>
+        </form>
+      </div>
+      `
+          : `<div>Login Page</div>`
+      }
+    </div>
+  );
+};
+
+export default Login;
+`;
+}
+
+function getDashboardTemplate(ext, tailwind) {
+  return `
+import React from 'react';
+${tailwind ? 'import { cn } from "../lib/utils";' : ""}
+
+const Dashboard = () => {
+  const sampleData = [
+    { id: 1, name: "Project A", status: "Active" },
+    { id: 2, name: "Project B", status: "Pending" },
+    { id: 3, name: "Project C", status: "Completed" },
+  ];
+
+  return (
+    <div${tailwind ? ' className={cn("min-h-screen p-6 bg-gray-100")}' : ""}>
+      ${
+        tailwind
+          ? `
+      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {sampleData.map((item) => (
+          <div key={item.id} className="bg-white p-4 rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold">{item.name}</h2>
+            <p className="text-gray-600">Status: ${"${item.status}"}</p>
+          </div>
+        ))}
+      </div>
+      `
+          : `
+      <h1>Dashboard</h1>
+      <ul>
+        {sampleData.map((item) => (
+          <li key={item.id}>${"${item.name}"} - ${"${item.status}"}</li>
+        ))}
+      </ul>
+      `
+      }
+    </div>
+  );
+};
+
+export default Dashboard;
 `;
 }
 
@@ -605,49 +914,74 @@ module.exports = {
 `;
 }
 
-async function createStore(projectDir, ext, stateManagement, persist, authentication) {
-  const storeDir = path.join(projectDir, "src", "store");
-  await fs.ensureDir(storeDir);
-
-  if (stateManagement === "Redux Toolkit") {
+async function createStore(projectDir, ext, authentication, persist) {
+    const storeDir = path.join(projectDir, "src", "store");
+    await fs.ensureDir(storeDir);
+  
     await fs.writeFile(
       path.join(storeDir, `store.${ext}`),
-      getReduxStoreTemplate(ext, persist)
+      getReduxStoreTemplate(ext, persist, authentication)
     );
+  
     if (authentication) {
       await fs.writeFile(
         path.join(storeDir, `userSlice.${ext}`),
         getUserSliceTemplate(ext, persist)
       );
+    } else if (!authentication) {
+      await fs.writeFile(
+        path.join(storeDir, `counterSlice.${ext}`),
+        getCounterSliceTemplate(ext)
+      );
     }
-  } else if (stateManagement === "Zustand") {
-    await fs.writeFile(
-      path.join(storeDir, `useStore.${ext}`),
-      getZustandStoreTemplate(ext, persist, authentication)
-    );
   }
-}
-
-function getReduxStoreTemplate(ext, persist) {
+function getCounterSliceTemplate(ext) {
   return `
-import { configureStore } from '@reduxjs/toolkit';
-${persist ? "import { persistStore, persistReducer } from 'redux-persist';\nimport storage from 'redux-persist/lib/storage';" : ""}
-import userSlice from './userSlice';
-
-const persistConfig = ${persist ? "{ key: 'root', storage }" : "{}"};
-
-const rootReducer = {
-  user: ${persist ? "persistReducer(persistConfig, userSlice)" : "userSlice"},
-};
-
-export const store = configureStore({
-  reducer: rootReducer,
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware({ serializableCheck: false }),
-});
-
-${persist ? "export const persistor = persistStore(store);" : ""}
-`;
+  import { createSlice } from '@reduxjs/toolkit';
+  
+  const counterSlice = createSlice({
+    name: 'counter',
+    initialState: {
+      value: 0,
+    },
+    reducers: {
+      increment: (state) => {
+        state.value += 1;
+      },
+      decrement: (state) => {
+        state.value -= 1;
+      },
+      incrementByAmount: (state, action) => {
+        state.value += action.payload;
+      },
+    },
+  });
+  
+  export const { increment, decrement, incrementByAmount } = counterSlice.actions;
+  export default counterSlice.reducer;
+  `;
+}
+function getReduxStoreTemplate(ext, persist, authentication) {
+  return `
+  import { configureStore } from '@reduxjs/toolkit';
+  ${persist ? "import { persistStore, persistReducer } from 'redux-persist';\nimport storage from 'redux-persist/lib/storage';" : ""}
+  import ${authentication ? "userSlice" : "counterSlice"} from './${authentication ? "userSlice" : "counterSlice"}';
+  
+  const persistConfig = ${persist ? "{ key: 'root', storage }" : "{}"};
+  
+  const rootReducer = {
+    ${authentication ? "user" : "counter"}: ${
+    persist ? `persistReducer(persistConfig, ${authentication ? "userSlice" : "counterSlice"})` : authentication ? "userSlice" : "counterSlice"
+  },
+  };
+  
+  export const store = configureStore({
+    reducer: rootReducer,
+    middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
+  });
+  
+  ${persist ? "export const persistor = persistStore(store);" : ""}
+  `;
 }
 
 function getUserSliceTemplate(ext, persist) {
@@ -703,15 +1037,9 @@ async function createApiHandler(projectDir, ext, apiHandler) {
   await fs.ensureDir(apiDir);
 
   if (apiHandler === "Axios") {
-    await fs.writeFile(
-      path.join(apiDir, `api.${ext}`),
-      getAxiosTemplate(ext)
-    );
+    await fs.writeFile(path.join(apiDir, `api.${ext}`), getAxiosTemplate(ext));
   } else {
-    await fs.writeFile(
-      path.join(apiDir, `api.${ext}`),
-      getFetchTemplate(ext)
-    );
+    await fs.writeFile(path.join(apiDir, `api.${ext}`), getFetchTemplate(ext));
   }
 }
 
