@@ -620,70 +620,100 @@ async function generateReadme(projectDir, packageManager, features) {
 }
 
 function getAppTemplate(ext, template, authentication, stateManager, persist, tailwind, shadcn) {
-  return `
-  ${
-    stateManager
-      ? `import { Provider } from 'react-redux';
-  import { store${persist ? ", persistor" : ""} } from './store/store';
-  ${persist ? "import { PersistGate } from 'redux-persist/integration/react';" : ""}`
-      : ""
+  const lines = [];
+
+  // Imports
+  if (stateManager) {
+    lines.push(`import { Provider } from 'react-redux';`);
+    lines.push(`import { store${persist ? ", persistor" : ""} } from './store/store';`);
+    if (persist) lines.push(`import { PersistGate } from 'redux-persist/integration/react';`);
   }
-  import React from 'react';
-  import { BrowserRouter as Router${authentication || template === "Dashboard" ? ", Routes, Route" : ""} } from 'react-router-dom';
-  ${authentication ? "import PrivateRoutes from './routes/PrivateRoutes';" : ""}
-  ${authentication ? "import PublicRoutes from './routes/PublicRoutes';" : ""}
-  ${authentication ? "import ProjectRoutes from './routes/ProjectRoutes';" : ""}
-  ${template === "Dashboard" || authentication ? "import Dashboard from './components/Dashboard';" : ""}
-  ${shadcn ? "import { cn } from './lib/utils';" : ""}
-  
-  function App() {
-    return (
-      ${
-        stateManager
-          ? `<Provider store={store}>
-        ${persist ? "<PersistGate loading={null} persistor={persistor}>" : ""}
-        `
-          : ""
-      }
-        <Router>
-          ${
-            authentication
-              ? `<Routes>
-          <Route path="/*" element={<PublicRoutes />} />
-          <Route path="/app/*" element={<PrivateRoutes />}>
-            <Route path="*" element={<ProjectRoutes />} />
-          </Route>
-        </Routes>`
-              : template === "Dashboard"
-              ? `<Routes>
-          <Route path="/" element={<Dashboard />} />
-        </Routes>`
-              : `<div${tailwind ? ' className="text-center p-4"' : shadcn ? ' className={cn("text-center p-4")}' : ""}>Hello, World!</div>`
-          }
-        </Router>
-        ${stateManager ? (persist ? "</PersistGate>" : "") + "</Provider>" : ""}
-    );
+  lines.push(`import React from 'react';`);
+  lines.push(`import { BrowserRouter as Router${authentication || template === "Dashboard" ? ", Routes, Route" : ""} } from 'react-router-dom';`);
+  if (authentication) {
+    lines.push(`import PrivateRoutes from './routes/PrivateRoutes';`);
+    lines.push(`import PublicRoutes from './routes/PublicRoutes';`);
+    lines.push(`import ProjectRoutes from './routes/ProjectRoutes';`);
   }
-  
-  export default App;
-  `;
+  if (template === "Dashboard" || authentication) {
+    lines.push(`import Dashboard from './components/Dashboard';`);
+  }
+  if (shadcn) {
+    lines.push(`import { cn } from './lib/utils';`);
+  }
+
+  // Empty line after imports
+  lines.push("");
+
+  // Function definition
+  lines.push(`function App() {`);
+  lines.push(`  return (`);
+
+  // State management wrapper (if applicable)
+  if (stateManager) {
+    lines.push(`    <Provider store={store}>`);
+    if (persist) lines.push(`      <PersistGate loading={null} persistor={persistor}>`);
+  }
+
+  // Router and content
+  lines.push(`      <Router>`);
+  if (authentication) {
+    lines.push(`        <Routes>`);
+    lines.push(`          <Route path="/*" element={<PublicRoutes />} />`);
+    lines.push(`          <Route path="/app/*" element={<PrivateRoutes />}>`);
+    lines.push(`            <Route path="*" element={<ProjectRoutes />} />`);
+    lines.push(`          </Route>`);
+    lines.push(`        </Routes>`);
+  } else if (template === "Dashboard") {
+    lines.push(`        <Routes>`);
+    lines.push(`          <Route path="/" element={<Dashboard />} />`);
+    lines.push(`        </Routes>`);
+  } else {
+    lines.push(`        <div${tailwind ? ' className="text-center p-4"' : shadcn ? ' className={cn("text-center p-4")}' : ""}>Hello, World!</div>`);
+  }
+  lines.push(`      </Router>`);
+
+  // Close state management wrapper (if applicable)
+  if (stateManager) {
+    if (persist) lines.push(`      </PersistGate>`);
+    lines.push(`    </Provider>`);
+  }
+
+  // Close function
+  lines.push(`  );`);
+  lines.push(`}`);
+  lines.push("");
+  lines.push(`export default App;`);
+
+  return lines.join("\n");
 }
 
 function getMainTemplate(ext, stateManager, persist, tailwind) {
-  return `
-  import React from 'react';
-  import ReactDOM from 'react-dom/client';
-  import App from './App';
-  ${tailwind ? "import './index.css';" : ""}
-  ${stateManager && persist ? "import './store/store';" : ""}
-  
-  const root = ReactDOM.createRoot(document.getElementById('root'));
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-  `;
+  const lines = [];
+
+  // Imports
+  lines.push(`import React from 'react';`);
+  lines.push(`import ReactDOM from 'react-dom/client';`);
+  lines.push(`import App from './App';`);
+  if (tailwind) {
+    lines.push(`import './index.css';`);
+  }
+  if (stateManager && persist) {
+    lines.push(`import './store/store';`);
+  }
+
+  // Empty line after imports
+  lines.push("");
+
+  // Root rendering
+  lines.push(`const root = ReactDOM.createRoot(document.getElementById('root'));`);
+  lines.push(`root.render(`);
+  lines.push(`  <React.StrictMode>`);
+  lines.push(`    <App />`);
+  lines.push(`  </React.StrictMode>`);
+  lines.push(`);`);
+
+  return lines.join("\n");
 }
 
 function getIndexHtmlTemplate(ext, customFonts, fontChoice) {
