@@ -79,21 +79,6 @@ export async function getUserConfig() {
     },
     {
       type: "confirm",
-      name: "shadcn",
-      message: "Do you want to integrate Shadcn UI library (requires Tailwind CSS)?",
-      default: false,
-      when: (answers) => answers.tailwind,
-    },
-    {
-      type: "checkbox",
-      name: "shadcnComponents",
-      message: "Select Shadcn UI components to include:",
-      choices: ["Button", "Input", "Card"],
-      default: ["Button"],
-      when: (answers) => answers.shadcn,
-    },
-    {
-      type: "confirm",
       name: "gitInit",
       message: "Do you want to initialize a Git repository?",
       default: true,

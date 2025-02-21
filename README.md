@@ -22,7 +22,6 @@
 - **Styling**:
   - **Tailwind CSS**: Rapidly style your app with utility classes.
   - **Custom Fonts**: Select from Google Fonts like Roboto, Inter, Poppins, etc.
-  - **Shadcn UI**: Beautiful, customizable components (requires Tailwind CSS).
 - **Developer Tools**:
   - **Git**: Initialize a Git repository with a robust `.gitignore`.
   - **Husky**: Set up Git hooks for pre-commit linting/formatting.
@@ -96,7 +95,6 @@ your-project-name/
 ├── node_modules/           # Dependencies
 ├── src/                   # Source code
 │   ├── components/        # React components (e.g., Dashboard)
-│   │   └── ui/            # Shadcn UI components (if selected)
 │   ├── pages/             # Pages (e.g., Login) if authentication is enabled
 │   ├── routes/            # Route definitions (if authentication is enabled)
 │   ├── store/             # Redux store and slices (if selected)
@@ -132,9 +130,7 @@ your-project-name/
 | `apiHandler`          | `Axios`, `Fetch`                         | HTTP client for API requests.                                              |
 | `tailwind`            | Yes/No                                   | Integrates Tailwind CSS for styling.                                       |
 | `customFonts`         | Yes/No                                   | Adds a custom Google Font.                                                 |
-| `fontChoice`          | `Roboto`, `Inter`, etc.                  | Selects a font (if `customFonts` is enabled).                              |
-| `shadcn`              | Yes/No                                   | Adds Shadcn UI components (requires `tailwind`).                           |
-| `shadcnComponents`    | `Button`, `Input`, `Card`                | Specific Shadcn components to include (if `shadcn` is enabled).            |
+| `fontChoice`          | `Roboto`, `Inter`, etc.                  | Selects a font (if `customFonts` is enabled).                              |           |
 | `gitInit`             | Yes/No                                   | Initializes a Git repository.                                              |
 | `husky`               | Yes/No                                   | Sets up Husky for Git hooks.                                               |
 

@@ -1,17 +1,12 @@
-export function getLoginTemplate(ext, tailwind, shadcn) {
+export function getLoginTemplate(ext, tailwind) {
   const isTs = ext === "tsx";
   return `
   import React from 'react';
-  ${tailwind && shadcn ? 'import { cn } from "../lib/utils";' : ""}
   ${isTs ? "import type { FC } from 'react';" : ""}
   
   const Login${isTs ? ": FC" : ""} = () => {
     return (
-      <div${
-        tailwind && shadcn
-          ? ' className={cn("min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100")}'
-          : ' className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100"'
-      } >
+      <div${tailwind ? ' className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100"' : ""} >
         ${
           tailwind
             ? `
@@ -30,7 +25,7 @@ export function getLoginTemplate(ext, tailwind, shadcn) {
               <input type="password" id="password" className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Enter your password" />
             </div>
             <button type="submit" className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg font-medium text-lg hover:bg-blue-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">Sign In</button>
-            <p className="text-center text-gray-600 mt-6">Don't have an account? <a href="#" className="text-blue-500 hover:text-blue-600 font-medium">Sign up now</a></p>
+            <p className="text-center text-gray-600 mt-6">Don&apos;t have an account? <a href="#" className="text-blue-500 hover:text-blue-600 font-medium">Sign up now</a></p>
           </form>
         </div>
         `
@@ -44,11 +39,10 @@ export function getLoginTemplate(ext, tailwind, shadcn) {
   `.trim();
 }
 
-export function getDashboardTemplate(ext, tailwind, shadcn) {
+export function getDashboardTemplate(ext, tailwind) {
   const isTs = ext === "tsx";
   return `
   import React from 'react';
-  ${shadcn ? 'import { cn } from "../lib/utils";' : ""}
   ${isTs ? "import type { FC } from 'react';" : ""}
   
   const Dashboard${isTs ? ": FC" : ""} = () => {
@@ -59,20 +53,16 @@ export function getDashboardTemplate(ext, tailwind, shadcn) {
     ];
   
     return (
-      <div${tailwind ? `${shadcn ? ' className={cn("min-h-screen p-6 bg-gray-100")}' : ' className="min-h-screen p-6 bg-gray-100"'}` : ""}>
+      <div${tailwind ? ` className="min-h-screen p-6 bg-gray-100"` : ""}>
         ${
           tailwind
             ? `
-        <h1${shadcn ? ' className={cn("text-3xl font-bold mb-6")}' : ' className="text-3xl font-bold mb-6"'}>Dashboard</h1>
-        <div${
-          shadcn
-            ? ' className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6")}'
-            : ' className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"'
-        } >
+        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sampleData.map((item${isTs ? ": any" : ""}) => (
-            <div key={item.id}${shadcn ? ' className={cn("bg-white p-4 rounded-lg shadow-md")}' : ' className="bg-white p-4 rounded-lg shadow-md"'} >
-              <h2${shadcn ? ' className={cn("text-xl font-semibold")}' : ' className="text-xl font-semibold"'} >{item.name}</h2>
-              <p${shadcn ? ' className={cn("text-gray-600")}' : ' className="text-gray-600"'} >Status: ${"${item.status}"}</p>
+            <div key={item.id} className="bg-white p-4 rounded-lg shadow-md" >
+              <h2 className="text-xl font-semibold" >{item.name}</h2>
+              <p className="text-gray-600">Status: ${"${item.status}"}</p>
             </div>
           ))}
         </div>

@@ -9,12 +9,11 @@ import { initializeGit } from "./utils/git.js";
 import { updatePackageJson } from "./utils/packageJson.js";
 
 export async function generateConfigFiles(projectDir, packageManager, config, isTs) {
-  const { tailwind, shadcn, prettier, eslint, husky, gitInit } = config;
+  const { tailwind, prettier, eslint, husky, gitInit } = config;
 
   await fs.writeFile(path.join(projectDir, `vite.config.${isTs ? "ts" : "js"}`), getViteConfigTemplate(isTs, tailwind));
   if (isTs) await fs.writeFile(path.join(projectDir, "tsconfig.json"), getTsConfigTemplate());
   if (tailwind) await fs.writeFile(path.join(projectDir, `tailwind.config.${isTs ? "ts" : "js"}`), getTailwindConfigTemplate(isTs));
-  if (shadcn) await fs.writeFile(path.join(projectDir, "components.json"), getShadcnConfigTemplate(isTs));
   if (prettier)
     await Promise.all([
       fs.writeFile(path.join(projectDir, ".prettierrc"), getPrettierConfigTemplate()),
@@ -39,7 +38,6 @@ export async function generateReadme(projectDir, packageManager, features) {
   ${features.apiHandler ? `- API Handler: ${features.apiHandler}` : ""}
   ${features.tailwind ? "- Tailwind CSS for styling" : ""}
   ${features.customFonts && features.fontChoice !== "None" ? `- Custom Font: ${features.fontChoice}` : ""}
-  ${features.shadcn ? `- Shadcn UI components: ${features.shadcnComponents.join(", ")}` : ""}
   ${features.husky ? "- Husky for git hooks" : ""}
   ${features.prettier ? "- Prettier for code formatting" : ""}
   ${features.eslint ? "- ESLint for linting" : ""}
@@ -70,7 +68,6 @@ export async function generateReadme(projectDir, packageManager, features) {
       ? "## Authentication\n- A login page is available at `/login`.\n- The dashboard is protected and accessible at `/app/dashboard` after login."
       : ""
   }
-  ${features.shadcn ? "## Shadcn UI\n- Use imported components from `src/components/ui/` in your app.\n- Example: `<Button>Click me</Button>`" : ""}
   `;
   await fs.writeFile(path.join(projectDir, "README.md"), readmeContent.trim());
 }

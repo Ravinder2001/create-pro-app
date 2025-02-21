@@ -38,7 +38,7 @@ export async function installBaseDependencies(projectDir, packageManager, isTs, 
 }
 
 export async function installDependencies(projectDir, packageManager, config, isTs) {
-  const { authentication, stateManager, persist, apiHandler, tailwind, shadcn, husky, prettier, eslint } = config;
+  const { authentication, stateManager, persist, apiHandler, tailwind, husky, prettier, eslint } = config;
   const deps = ["react-router-dom", "react-error-boundary"];
   const devDeps = [];
 
@@ -48,7 +48,6 @@ export async function installDependencies(projectDir, packageManager, config, is
   }
   if (apiHandler === "Axios") deps.push("axios");
   if (tailwind) devDeps.push("tailwindcss", "@tailwindcss/vite", "autoprefixer");
-  if (shadcn) deps.push("clsx", "tailwind-merge");
   if (husky) devDeps.push("husky");
   if (prettier) devDeps.push("prettier", "lint-staged");
   if (eslint) {
