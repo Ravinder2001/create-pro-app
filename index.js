@@ -274,13 +274,18 @@ async function createProjectStructure(
   shadcnComponents
 ) {
   const srcDir = path.join(projectDir, "src");
+  const componentsDir = path.join(projectDir, "src", "components");
 
   await fs.remove(srcDir);
   await fs.ensureDir(srcDir);
+  await fs.ensureDir(componentsDir);
 
   await fs.writeFile(path.join(srcDir, `App.${ext}`), getAppTemplate(ext, template, authentication, stateManager, persist, tailwind, shadcn));
   await fs.writeFile(path.join(srcDir, `main.${ext}`), getMainTemplate(ext, stateManager, persist, tailwind));
   await fs.writeFile(path.join(projectDir, "index.html"), getIndexHtmlTemplate(ext, customFonts, fontChoice));
+
+  // Add ErrorFallback component
+  await fs.writeFile(path.join(componentsDir, `ErrorFallback.${ext}`), getErrorFallbackTemplate(ext, tailwind));
 
   if (authentication) {
     const routesDir = path.join(srcDir, "routes");
@@ -294,12 +299,8 @@ async function createProjectStructure(
   }
 
   if (template === "Dashboard" || authentication) {
-    const componentsDir = path.join(srcDir, "components");
     await fs.ensureDir(componentsDir);
-    await fs.writeFile(
-      path.join(componentsDir, `Dashboard.${ext}`),
-      getDashboardTemplate(ext, tailwind, shadcn) // Pass shadcn here
-    );
+    await fs.writeFile(path.join(componentsDir, `Dashboard.${ext}`), getDashboardTemplate(ext, tailwind, shadcn));
   }
 
   if (stateManager) {
@@ -330,12 +331,12 @@ async function installDependencies(
   husky,
   prettier,
   eslint,
-  isTs // Add isTs parameter
+  isTs
 ) {
   const deps = [];
   const devDeps = [];
 
-  deps.push("react-router-dom");
+  deps.push("react-router-dom", "react-error-boundary"); // Add react-error-boundary here
 
   if (stateManager) {
     deps.push("@reduxjs/toolkit", "react-redux");
@@ -361,9 +362,9 @@ async function installDependencies(
       "@eslint/js",
       "eslint-plugin-react",
       "eslint-plugin-react-hooks",
-      isTs ? "@typescript-eslint/parser" : "@babel/eslint-parser" // Use isTs here
+      isTs ? "@typescript-eslint/parser" : "@babel/eslint-parser"
     );
-    if (!isTs) devDeps.push("@babel/preset-react"); // Required for JSX parsing with Babel
+    if (!isTs) devDeps.push("@babel/preset-react");
   }
 
   const installCommand = packageManager === "npm" ? "install" : "add";
@@ -620,66 +621,31 @@ async function generateReadme(projectDir, packageManager, features) {
 }
 
 function getAppTemplate(ext, template, authentication, stateManager, persist, tailwind, shadcn) {
+  const isTs = ext === "tsx";
   const lines = [];
 
   // Imports
-  if (stateManager) {
-    lines.push(`import { Provider } from 'react-redux';`);
-    lines.push(`import { store${persist ? ", persistor" : ""} } from './store/store';`);
-    if (persist) lines.push(`import { PersistGate } from 'redux-persist/integration/react';`);
-  }
-  lines.push(`import React from 'react';`);
-  lines.push(`import { BrowserRouter as Router${authentication || template === "Dashboard" ? ", Routes, Route" : ""} } from 'react-router-dom';`);
-  if (authentication) {
-    lines.push(`import PrivateRoutes from './routes/PrivateRoutes';`);
-    lines.push(`import PublicRoutes from './routes/PublicRoutes';`);
-    lines.push(`import ProjectRoutes from './routes/ProjectRoutes';`);
-  }
-  if (template === "Dashboard" || authentication) {
-    lines.push(`import Dashboard from './components/Dashboard';`);
-  }
+  lines.push(`import React, { lazy, Suspense } from 'react';`);
+  lines.push(`import { ErrorBoundary } from 'react-error-boundary';`);
+  lines.push(`import ErrorFallback from './components/ErrorFallback';`); // New import
+  lines.push(`const ProjectRoutes = lazy(() => import('./routes/ProjectRoutes'));`);
   if (shadcn) {
     lines.push(`import { cn } from './lib/utils';`);
   }
+  if (isTs) {
+    lines.push(`import type { FC } from 'react';`);
+  }
 
-  // Empty line after imports
   lines.push("");
 
   // Function definition
-  lines.push(`function App() {`);
+  lines.push(`${isTs ? "const App: FC = () => {" : "function App() {"}`);
   lines.push(`  return (`);
-
-  // State management wrapper (if applicable)
-  if (stateManager) {
-    lines.push(`    <Provider store={store}>`);
-    if (persist) lines.push(`      <PersistGate loading={null} persistor={persistor}>`);
-  }
-
-  // Router and content
-  lines.push(`      <Router>`);
-  if (authentication) {
-    lines.push(`        <Routes>`);
-    lines.push(`          <Route path="/*" element={<PublicRoutes />} />`);
-    lines.push(`          <Route path="/app/*" element={<PrivateRoutes />}>`);
-    lines.push(`            <Route path="*" element={<ProjectRoutes />} />`);
-    lines.push(`          </Route>`);
-    lines.push(`        </Routes>`);
-  } else if (template === "Dashboard") {
-    lines.push(`        <Routes>`);
-    lines.push(`          <Route path="/" element={<Dashboard />} />`);
-    lines.push(`        </Routes>`);
-  } else {
-    lines.push(`        <div${tailwind ? ' className="text-center p-4"' : shadcn ? ' className={cn("text-center p-4")}' : ""}>Hello, World!</div>`);
-  }
-  lines.push(`      </Router>`);
-
-  // Close state management wrapper (if applicable)
-  if (stateManager) {
-    if (persist) lines.push(`      </PersistGate>`);
-    lines.push(`    </Provider>`);
-  }
-
-  // Close function
+  lines.push(`    <ErrorBoundary FallbackComponent={ErrorFallback} onError={(error, info) => console.error("Error:", error, info)}>`);
+  lines.push(`      <Suspense fallback={<div${tailwind ? ' className="text-center p-4"' : ""}>Loading...</div>}>`);
+  lines.push(`        <ProjectRoutes />`);
+  lines.push(`      </Suspense>`);
+  lines.push(`    </ErrorBoundary>`);
   lines.push(`  );`);
   lines.push(`}`);
   lines.push("");
@@ -689,28 +655,41 @@ function getAppTemplate(ext, template, authentication, stateManager, persist, ta
 }
 
 function getMainTemplate(ext, stateManager, persist, tailwind) {
+  const isTs = ext === "tsx";
   const lines = [];
 
   // Imports
   lines.push(`import React from 'react';`);
   lines.push(`import ReactDOM from 'react-dom/client';`);
+  lines.push(`import { BrowserRouter as Router } from 'react-router-dom';`);
   lines.push(`import App from './App';`);
   if (tailwind) {
     lines.push(`import './index.css';`);
   }
-  if (stateManager && persist) {
-    lines.push(`import './store/store';`);
+  if (stateManager) {
+    lines.push(`import { Provider } from 'react-redux';`);
+    lines.push(`import { store${persist ? ", persistor" : ""} } from './store/store';`);
+    if (persist) lines.push(`import { PersistGate } from 'redux-persist/integration/react';`);
   }
 
-  // Empty line after imports
   lines.push("");
 
   // Root rendering
-  lines.push(`const root = ReactDOM.createRoot(document.getElementById('root'));`);
+  lines.push(`const root = ReactDOM.createRoot(document.getElementById('root')${isTs ? " as HTMLDivElement" : ""});`);
   lines.push(`root.render(`);
-  lines.push(`  <React.StrictMode>`);
-  lines.push(`    <App />`);
-  lines.push(`  </React.StrictMode>`);
+  if (stateManager) {
+    lines.push(`  <Provider store={store}>`);
+    if (persist) lines.push(`    <PersistGate loading={null} persistor={persistor}>`);
+  }
+  lines.push(`    <Router>`);
+  lines.push(`      <React.StrictMode>`);
+  lines.push(`        <App />`);
+  lines.push(`      </React.StrictMode>`);
+  lines.push(`    </Router>`);
+  if (stateManager) {
+    if (persist) lines.push(`    </PersistGate>`);
+    lines.push(`  </Provider>`);
+  }
   lines.push(`);`);
 
   return lines.join("\n");
@@ -919,14 +898,15 @@ export { Card, CardHeader, CardTitle, CardContent };
 }
 
 function getPrivateRoutesTemplate(ext) {
+  const isTs = ext === "tsx";
   return `
 import React from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
+${isTs ? "import type { ReactNode } from 'react';" : ""}
 
-const PrivateRoutes = () => {
-  // TODO: Replace with your authentication logic (e.g., Redux state, localStorage token, etc.)
-  const isAuthenticated = localStorage.getItem('token') !== null; 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
+const PrivateRoutes = (${isTs ? "{ children }: { children: ReactNode }" : "{ children }"}) => {
+  const isAuthenticated = localStorage.getItem('token') !== null; // TODO: Replace with your auth logic
+  return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
 export default PrivateRoutes;
@@ -934,18 +914,15 @@ export default PrivateRoutes;
 }
 
 function getPublicRoutesTemplate(ext) {
+  const isTs = ext === "tsx";
   return `
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import Login from '../pages/Login';
+import { Navigate } from 'react-router-dom';
+${isTs ? "import type { ReactNode } from 'react';" : ""}
 
-const PublicRoutes = () => {
-  return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="*" element={<div>404 Not Found</div>} />
-    </Routes>
-  );
+const PublicRoutes = (${isTs ? "{ children }: { children: ReactNode }" : "{ children }"}) => {
+  const isAuthenticated = localStorage.getItem('token') !== null; // TODO: Replace with your auth logic
+  return !isAuthenticated ? children : <Navigate to="/" />;
 };
 
 export default PublicRoutes;
@@ -953,16 +930,51 @@ export default PublicRoutes;
 }
 
 function getProjectRoutesTemplate(ext, tailwind) {
+  const isTs = ext === "tsx";
   return `
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
+import PrivateRoutes from './PrivateRoutes';
+import PublicRoutes from './PublicRoutes';
 import Dashboard from '../components/Dashboard';
+import Login from '../pages/Login';
+${isTs ? "import type { FC } from 'react';" : ""}
 
-const ProjectRoutes = () => {
+const ProjectRoutes${isTs ? ": FC" : ""} = () => {
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/profile" element={<div${tailwind ? ' className="text-center p-4"' : ""}>Profile</div>} />
+      <Route 
+        path="/" 
+        element={
+          <PrivateRoutes>
+            <Dashboard />
+          </PrivateRoutes>
+        } 
+      />
+      <Route 
+        path="/profile" 
+        element={
+          <PrivateRoutes>
+            <div${tailwind ? ' className="text-center p-4"' : ""}>Profile</div>
+          </PrivateRoutes>
+        } 
+      />
+      <Route 
+        path="/login" 
+        element={
+          <PublicRoutes>
+            <Login />
+          </PublicRoutes>
+        } 
+      />
+      <Route 
+        path="*" 
+        element={
+          <PublicRoutes>
+            <div${tailwind ? ' className="text-center p-4"' : ""}>404 Not Found</div>
+          </PublicRoutes>
+        } 
+      />
     </Routes>
   );
 };
@@ -972,11 +984,13 @@ export default ProjectRoutes;
 }
 
 function getLoginTemplate(ext, tailwind, shadcn) {
+  const isTs = ext === "tsx";
   return `
 import React from 'react';
 ${tailwind && shadcn ? 'import { cn } from "../lib/utils";' : ""}
+${isTs ? "import type { FC } from 'react';" : ""}
 
-const Login = () => {
+const Login${isTs ? ": FC" : ""} = () => {
   return (
     <div${
       tailwind && shadcn
@@ -1050,11 +1064,13 @@ export default Login;
 }
 
 function getDashboardTemplate(ext, tailwind, shadcn) {
+  const isTs = ext === "tsx";
   return `
 import React from 'react';
 ${shadcn ? 'import { cn } from "../lib/utils";' : ""}
+${isTs ? "import type { FC } from 'react';" : ""}
 
-const Dashboard = () => {
+const Dashboard${isTs ? ": FC" : ""} = () => {
   const sampleData = [
     { id: 1, name: "Project A", status: "Active" },
     { id: 2, name: "Project B", status: "Pending" },
@@ -1072,7 +1088,7 @@ const Dashboard = () => {
           ? ' className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6")}'
           : ' className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"'
       }>
-        {sampleData.map((item) => (
+        {sampleData.map((item${isTs ? ": any" : ""}) => (
           <div key={item.id}${shadcn ? ' className={cn("bg-white p-4 rounded-lg shadow-md")}' : ' className="bg-white p-4 rounded-lg shadow-md"'}>
             <h2${shadcn ? ' className={cn("text-xl font-semibold")}' : ' className="text-xl font-semibold"'}>{item.name}</h2>
             <p${shadcn ? ' className={cn("text-gray-600")}' : ' className="text-gray-600"'}>Status: ${"${item.status}"}</p>
@@ -1083,7 +1099,7 @@ const Dashboard = () => {
           : `
       <h1>Dashboard</h1>
       <ul>
-        {sampleData.map((item) => (
+        {sampleData.map((item${isTs ? ": any" : ""}) => (
           <li key={item.id}>${"${item.name}"} - ${"${item.status}"}</li>
         ))}
       </ul>
@@ -1121,7 +1137,8 @@ export default [
       globals: {
         localStorage: true,
         window: true,
-        document: true
+        document: true,
+        console: true, // Add console to globals
       },
     },
     plugins: {
@@ -1136,7 +1153,8 @@ export default [
     rules: {
       ...reactPlugin.configs.recommended.rules,
       ...reactHooksPlugin.configs.recommended.rules,
-      'react/prop-types': 'off', // Disable prop-types since we use TypeScript or don't enforce it
+      'react/prop-types': 'off',
+      ${isTs ? "'@typescript-eslint/no-explicit-any': 'off'," : ""} // Allow any types
     },
   },
 ];
@@ -1231,27 +1249,6 @@ export default userSlice.reducer;
 `;
 }
 
-function getZustandStoreTemplate(ext, persist, authentication) {
-  return `
-import { create } from 'zustand';
-${persist ? "import { persist } from 'zustand/middleware';" : ""}
-
-const useStore = create(
-  ${persist ? "persist(" : ""}
-    (set) => ({
-      ${authentication ? "id: null," : ""}
-      ${authentication ? "isAuthenticated: false," : ""}
-      ${authentication ? `setUser: (id) => set({ id, isAuthenticated: true }),` : ""}
-      ${authentication ? "clearUser: () => set({ id: null, isAuthenticated: false })," : ""}
-    }),
-    ${persist ? "{ name: 'app-storage' }" : ""}
-  ${persist ? ")" : ""}
-);
-
-export default useStore;
-`;
-}
-
 async function createApiHandler(projectDir, ext, apiHandler) {
   const utilsDir = path.join(projectDir, "src", "utils");
   await fs.ensureDir(utilsDir);
@@ -1327,6 +1324,29 @@ const apiFetch = async (url, options = {}) => {
 };
 
 export default apiFetch;
+`;
+}
+
+function getErrorFallbackTemplate(ext, tailwind) {
+  const isTs = ext === "tsx";
+  return `
+import React from 'react';
+${isTs ? "import type { FC } from 'react';" : ""}
+${isTs ? "import type { FallbackProps } from 'react-error-boundary';" : ""}
+
+const ErrorFallback${isTs ? ": FC<FallbackProps>" : ""} = (${isTs ? "{ error }: FallbackProps" : "{ error }"}) => {
+  return (
+    <div${tailwind ? ' className="min-h-screen flex items-center justify-center bg-gray-100"' : ""}>
+      <div${tailwind ? ' className="bg-white p-6 rounded-lg shadow-lg text-center"' : ""}>
+        <h1${tailwind ? ' className="text-2xl font-bold mb-4 text-red-600"' : ""}>Something went wrong</h1>
+        <p${tailwind ? ' className="text-gray-600"' : ""}>{error.message}</p>
+        <p${tailwind ? ' className="text-gray-600 mt-2"' : ""}>Please try refreshing the page or contact support.</p>
+      </div>
+    </div>
+  );
+};
+
+export default ErrorFallback;
 `;
 }
 
